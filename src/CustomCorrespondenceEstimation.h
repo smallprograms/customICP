@@ -41,7 +41,7 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
     PointCloudSourceConstPtr targetCloud = pcl::registration::CorrespondenceEstimation<PointSource,PointTarget>::getInputTarget();
 
     //put targetCloud in a kdtree in order to search
-    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+    pcl::KdTreeFLANN<PointTarget> kdtree;
     kdtree.setInputCloud (targetCloud);
 
     // K nearest neighbor search
@@ -56,7 +56,12 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
         if ( kdtree.nearestKSearch (sourceCloud->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 ) {
             //add correspondence
             if( pointNKNSquaredDistance[0] < max_distance ) {
-                correspondences.push_back(pcl::Correspondence(i,pointIdxNKNSearch[0],pointNKNSquaredDistance[0]));
+                Eigen::Vector3i rgbSource = sourceCloud->points[i].getRGBVector3i();
+                Eigen::Vector3i rgbTarget = targetCloud->points[pointIdxNKNSearch[0]].getRGBVector3i();
+                Eigen::Vector3f rgbDist = (rgbSource-rgbTarget).cast<float>();
+                if( rgbDist.norm() < 20) {
+                    correspondences.push_back(pcl::Correspondence(i,pointIdxNKNSearch[0],pointNKNSquaredDistance[0]));
+                }
             }
         }
     }

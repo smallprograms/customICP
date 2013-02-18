@@ -50,22 +50,22 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     //to accumulate ICP transformations
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
     //previous cloud
-    pcl::PointCloud<pcl::PointXYZ> prevCloud(640,480);
+    pcl::PointCloud<pcl::PointXYZRGBA> prevCloud(640,480);
     //global cloud (to register aligned clouds)
-    pcl::PointCloud<pcl::PointXYZ> globalCloud;
+    pcl::PointCloud<pcl::PointXYZRGBA> globalCloud;
     //register method to capture keyboard events
     viewer->registerKeyboardCallback( keyboardEventOccurred );
     //use our custom correspondences estimator 
-    CustomCorrespondenceEstimation<pcl::PointXYZ,pcl::PointXYZ,float> customCorresp;
-    pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+    CustomCorrespondenceEstimation<pcl::PointXYZRGBA,pcl::PointXYZRGBA,float> customCorresp;
+    pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
 
     icp.setCorrespondenceEstimation(
-    boost::shared_ptr<pcl::registration::CorrespondenceEstimation<pcl::PointXYZ,pcl::PointXYZ,float> > (&customCorresp));
+    boost::shared_ptr<pcl::registration::CorrespondenceEstimation<pcl::PointXYZRGBA,pcl::PointXYZRGBA,float> > (&customCorresp));
 
     //name of cloud file
     std::stringstream ss;
     ss << path << "/cap" << min << ".pcd";
-    if( pcl::io::loadPCDFile<pcl::PointXYZ>(ss.str(), prevCloud) == -1 ) {
+    if( pcl::io::loadPCDFile<pcl::PointXYZRGBA>(ss.str(), prevCloud) == -1 ) {
 
         std::cout << "Failed to read first cloud \n";
         return;
@@ -75,16 +75,16 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     globalCloud = prevCloud;
     std::cout << "Global cloud with: " << prevCloud.points.size() << "\n";
     //read file by file
-    for(int i=min; i <= max; i++) {
+    for(int i=min+1; i <= max; i++) {
 
         ss.str(""); //reset string
         ss << path << "/cap" << i << ".pcd";
 
-        pcl::PointCloud<pcl::PointXYZ> currCloud(640,480);
+        pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
         std::cout <<  "reading " << ss.str() << "\n";
 
         //read current cloud from file
-        if( pcl::io::loadPCDFile<pcl::PointXYZ>(ss.str(), currCloud) == -1 ) {
+        if( pcl::io::loadPCDFile<pcl::PointXYZRGBA>(ss.str(), currCloud) == -1 ) {
 
             std::cout << "Reading end at " << i << "\n";
             while( !viewer->wasStopped() ) {
@@ -116,8 +116,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             //icp.setEuclideanFitnessEpsilon (1e-6);
             icp.setRANSACOutlierRejectionThreshold(0.1);
 
-            pcl::PointCloud<pcl::PointXYZ> finalCloud(640,480);
-//            pcl::PointCloud<pcl::PointXYZRGB> colorCloud(640,480);
+            pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);
+//            pcl::PointCloud<pcl::PointXYZRGBARGB> colorCloud(640,480);
             icp.align (finalCloud);
             std::cout << "TRANSFORM: \n";
             std::cout << icp.getFinalTransformation() << std::endl;
@@ -137,9 +137,9 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             std::cout << cloudName << "\n";
             globalCloud = globalCloud + finalCloud;
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
-            //viewer->addPointCloud<pcl::PointXYZ>(finalCloud.makeShared(),cloudName);
+            //viewer->addPointCloud<pcl::PointXYZRGBA>(finalCloud.makeShared(),cloudName);
 
-            //viewer->addPointCloud<pcl::PointXYZ>(currCloud.makeShared(),cloudName);
+            //viewer->addPointCloud<pcl::PointXYZRGBA>(currCloud.makeShared(),cloudName);
             //std::cout << "Setting color: \n";
             //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, sin(i)*sin(i)*abs(cos(i)),abs(cos(i)),abs(sin(i)), cloudName);
         } else {
