@@ -56,12 +56,14 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
         if ( kdtree.nearestKSearch (sourceCloud->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 ) {
             //add correspondence
             if( pointNKNSquaredDistance[0] < max_distance ) {
+
                 Eigen::Vector3i rgbSource = sourceCloud->points[i].getRGBVector3i();
                 Eigen::Vector3i rgbTarget = targetCloud->points[pointIdxNKNSearch[0]].getRGBVector3i();
                 Eigen::Vector3f rgbDist = (rgbSource-rgbTarget).cast<float>();
                 if( rgbDist.norm() < 20) {
                     correspondences.push_back(pcl::Correspondence(i,pointIdxNKNSearch[0],pointNKNSquaredDistance[0]));
                 }
+
             }
         }
     }

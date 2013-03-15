@@ -9,6 +9,8 @@
 #include <pcl/registration/icp.h>
 #include <boost/thread/thread.hpp>
 #include "CustomCorrespondenceEstimation.h"
+#include "oflow_pcl.h"
+
 
 //flag used to press a key to process next capture
 bool doNext = false;
@@ -51,6 +53,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
     //previous cloud
     pcl::PointCloud<pcl::PointXYZRGBA> prevCloud(640,480);
+    cv::Mat prevImg;
     //global cloud (to register aligned clouds)
     pcl::PointCloud<pcl::PointXYZRGBA> globalCloud;
     //register method to capture keyboard events
@@ -70,10 +73,12 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         std::cout << "Failed to read first cloud \n";
         return;
     }
-
+    ss.str("");
+    ss << path << "/cap" << min << ".jpg";
+    prevImg = cv::imread(ss.str());
     //initialize globalCloud with first cloud
     globalCloud = prevCloud;
-    std::cout << "Global cloud with: " << prevCloud.points.size() << "\n";
+
     //read file by file
     for(int i=min+1; i <= max; i++) {
 
@@ -81,6 +86,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         ss << path << "/cap" << i << ".pcd";
 
         pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
+        cv::Mat currImg;
         std::cout <<  "reading " << ss.str() << "\n";
 
         //read current cloud from file
@@ -96,16 +102,23 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
         }
 
+        ss.str(""); //reset string
+        ss << path << "/cap" << i << ".jpg";
+        currImg = cv::imread(ss.str());
         if(doNext || true ) {
             doNext = false; 
 
-
+            pcl::PointCloud<pcl::PointXYZRGBA> currCloudNotDense;
+            pcl::PointCloud<pcl::PointXYZRGBA> prevCloudNotDense;
+            std::vector<int> vec1;
+            pcl::removeNaNFromPointCloud( currCloud, currCloudNotDense, vec1);
+            std::vector<int> vec2;
+            pcl::removeNaNFromPointCloud( prevCloud, prevCloudNotDense, vec2);
             // Set the input source and target
-            icp.setInputSource (currCloud.makeShared());
-            icp.setInputTarget (prevCloud.makeShared());
-
-
-
+            icp.setInputSource (currCloudNotDense.makeShared());
+            icp.setInputTarget (prevCloudNotDense.makeShared());
+            Eigen::Matrix4f initTransf = getOflow3Dtransf(currImg,currCloud.makeShared(),prevImg,prevCloud.makeShared());
+            std::cout << "Init transf: " << initTransf << "\n";
             // Set the max correspondence distance to 1cm (e.g., correspondences with higher distances will be ignored)
             icp.setMaxCorrespondenceDistance (0.2);
             // Set the maximum number of iterations (criterion 1)
@@ -118,7 +131,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
             pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);
 //            pcl::PointCloud<pcl::PointXYZRGBARGB> colorCloud(640,480);
-            icp.align (finalCloud);
+            icp.align (finalCloud,initTransf);
             std::cout << "TRANSFORM: \n";
             std::cout << icp.getFinalTransformation() << std::endl;
             transf = icp.getFinalTransformation() * transf;
@@ -130,6 +143,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             prevCloud.clear();
              std::cout << "Saving prev cloud: \n";
             pcl::copyPointCloud(currCloud,prevCloud);
+            prevImg = currImg;
 //            pcl::copyPointCloud(finalCloud,colorCloud);
             std::string cloudName;
             cloudName = rand_alnum_str(5);
