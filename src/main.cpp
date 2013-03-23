@@ -53,7 +53,6 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
     //previous cloud
     pcl::PointCloud<pcl::PointXYZRGBA> prevCloud(640,480);
-    cv::Mat prevImg;
     //global cloud (to register aligned clouds)
     pcl::PointCloud<pcl::PointXYZRGBA> globalCloud;
     //register method to capture keyboard events
@@ -73,9 +72,6 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         std::cout << "Failed to read first cloud \n";
         return;
     }
-    ss.str("");
-    ss << path << "/cap" << min << ".jpg";
-    prevImg = cv::imread(ss.str());
     //initialize globalCloud with first cloud
     globalCloud = prevCloud;
 
@@ -86,7 +82,6 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         ss << path << "/cap" << i << ".pcd";
 
         pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
-        cv::Mat currImg;
         std::cout <<  "reading " << ss.str() << "\n";
 
         //read current cloud from file
@@ -102,10 +97,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
         }
 
-        ss.str(""); //reset string
-        ss << path << "/cap" << i << ".jpg";
-        currImg = cv::imread(ss.str());
-        if(doNext || true ) {
+        if(doNext) {
+
             doNext = false; 
 
             pcl::PointCloud<pcl::PointXYZRGBA> currCloudNotDense;
@@ -117,8 +110,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             // Set the input source and target
             icp.setInputSource (currCloudNotDense.makeShared());
             icp.setInputTarget (prevCloudNotDense.makeShared());
-            Eigen::Matrix4f initTransf = getOflow3Dtransf(currImg,currCloud.makeShared(),prevImg,prevCloud.makeShared());
-            std::cout << "Init transf: " << initTransf << "\n";
+            Eigen::Matrix4f initTransf = getOflow3Dtransf(currCloud.makeShared(),prevCloud.makeShared());
+            std::cout << "Init transf: \n" << initTransf << "\n";
             // Set the max correspondence distance to 1cm (e.g., correspondences with higher distances will be ignored)
             icp.setMaxCorrespondenceDistance (0.2);
             // Set the maximum number of iterations (criterion 1)
@@ -131,19 +124,19 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
             pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);
 //            pcl::PointCloud<pcl::PointXYZRGBARGB> colorCloud(640,480);
-            icp.align (finalCloud,initTransf);
+            //icp.align (finalCloud,initTransf);
             std::cout << "TRANSFORM: \n";
-            std::cout << icp.getFinalTransformation() << std::endl;
-            transf = icp.getFinalTransformation() * transf;
+            //std::cout << icp.getFinalTransformation() << std::endl;
+            transf = initTransf * transf;
             std::cout << "Accum. Transform:\n";
-            std::cout << transf << "\n";  
+            //std::cout << transf << "\n";
             finalCloud.clear();
-             std::cout << "TRANSFORMING CLOUD: \n";
+            std::cout << "TRANSFORMING CLOUD: \n";
             pcl::transformPointCloud(currCloud,finalCloud,transf);
+            pcl::io::savePCDFileBinary ("finalCLoud.pcd", finalCloud);
             prevCloud.clear();
-             std::cout << "Saving prev cloud: \n";
+            std::cout << "Saving prev cloud: \n";
             pcl::copyPointCloud(currCloud,prevCloud);
-            prevImg = currImg;
 //            pcl::copyPointCloud(finalCloud,colorCloud);
             std::string cloudName;
             cloudName = rand_alnum_str(5);
@@ -151,7 +144,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             std::cout << cloudName << "\n";
             globalCloud = globalCloud + finalCloud;
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
-            //viewer->addPointCloud<pcl::PointXYZRGBA>(finalCloud.makeShared(),cloudName);
+            viewer->addPointCloud<pcl::PointXYZRGBA>(globalCloud.makeShared(),cloudName);
 
             //viewer->addPointCloud<pcl::PointXYZRGBA>(currCloud.makeShared(),cloudName);
             //std::cout << "Setting color: \n";
@@ -165,6 +158,13 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             //dont skip the current capture
             --i;
         }
+    }
+
+    while( !viewer->wasStopped() ) {
+
+        viewer->spinOnce (100);
+        boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+
     }
 
     pcl::io::savePCDFileBinary (outFile, globalCloud);
