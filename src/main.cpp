@@ -97,7 +97,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
         }
 
-        if(doNext) {
+        if(doNext || true) {
 
             doNext = false; 
 
