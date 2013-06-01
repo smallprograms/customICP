@@ -10,6 +10,9 @@
 #include <boost/thread/thread.hpp>
 #include "CustomCorrespondenceEstimation.h"
 #include "oflow_pcl.h"
+#include "BilateralFilter.h"
+#include <pcl/filters/fast_bilateral.h>
+#include "SobelFilter.h"
 
 
 //flag used to press a key to process next capture
@@ -47,7 +50,10 @@ std::string rand_alnum_str (std::string::size_type sz)
 /** loads different captures (.pcd files), align them with customICP and write them aligned in a single file (outFile) **/
 void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int min, int max, char* outFile ) {
 
+    SobelFilter<pcl::PointXYZRGBA> sobFilter;
+    pcl::PointCloud<pcl::PointXYZRGBA> sobelCloud;
 
+    pcl::FastBilateralFilter<pcl::PointXYZRGBA> fastBilFilter;
     pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
     //to accumulate ICP transformations
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
@@ -75,6 +81,10 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     //initialize globalCloud with first cloud
     globalCloud = prevCloud;
 
+    fastBilFilter.setInputCloud(prevCloud.makeShared());
+    fastBilFilter.filter(prevCloud);
+
+
     //read file by file
     for(int i=min+1; i <= max; i++) {
 
@@ -82,6 +92,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         ss << path << "/cap" << i << ".pcd";
 
         pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
+
         std::cout <<  "reading " << ss.str() << "\n";
 
         //read current cloud from file
@@ -97,6 +108,9 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
         }
 
+        fastBilFilter.setInputCloud(currCloud.makeShared());
+        fastBilFilter.filter(currCloud);
+
         if(doNext || true) {
 
             doNext = false; 
@@ -104,51 +118,47 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             pcl::PointCloud<pcl::PointXYZRGBA> currCloudNotDense;
             pcl::PointCloud<pcl::PointXYZRGBA> prevCloudNotDense;
             std::vector<int> vec1;
+
+            //icp.setInputTarget (prevCloudNotDense.makeShared());
+            Eigen::Matrix4f oflowTransf = getOflow3Dtransf(currCloud.makeShared(),prevCloud.makeShared());
             pcl::removeNaNFromPointCloud( currCloud, currCloudNotDense, vec1);
             std::vector<int> vec2;
             pcl::removeNaNFromPointCloud( prevCloud, prevCloudNotDense, vec2);
             // Set the input source and target
-            icp.setInputSource (currCloudNotDense.makeShared());
-            icp.setInputTarget (prevCloudNotDense.makeShared());
-            Eigen::Matrix4f initTransf = getOflow3Dtransf(currCloud.makeShared(),prevCloud.makeShared());
-            std::cout << "Init transf: \n" << initTransf << "\n";
+            sobFilter.setInputCloud(currCloud.makeShared());
+            sobFilter.applyFilter(sobelCloud);
+            customCorresp.sobelCloud = sobelCloud;
+            icp.setInputSource(currCloudNotDense.makeShared());
+            icp.setInputTarget (globalCloud.makeShared());
+            //icp.setInputTarget (prevCloudNotDense.makeShared());
+            std::cout << "oflow transf: \n" << oflowTransf << "\n";
             // Set the max correspondence distance to 1cm (e.g., correspondences with higher distances will be ignored)
-            icp.setMaxCorrespondenceDistance (0.2);
+            icp.setMaxCorrespondenceDistance (0.05);
             // Set the maximum number of iterations (criterion 1)
-            icp.setMaximumIterations (40);
+            icp.setMaximumIterations (20);
             // Set the transformation epsilon (criterion 2)
             //icp.setTransformationEpsilon (1e-6);
             // Set the euclidean distance difference epsilon (criterion 3)
             //icp.setEuclideanFitnessEpsilon (1e-6);
-            icp.setRANSACOutlierRejectionThreshold(0.1);
+            icp.setRANSACOutlierRejectionThreshold(0.05);
 
-            pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);
-//            pcl::PointCloud<pcl::PointXYZRGBARGB> colorCloud(640,480);
-            //icp.align (finalCloud,initTransf);
-            std::cout << "TRANSFORM: \n";
-            //std::cout << icp.getFinalTransformation() << std::endl;
-            transf = initTransf * transf;
-            std::cout << "Accum. Transform:\n";
-            //std::cout << transf << "\n";
-            finalCloud.clear();
-            std::cout << "TRANSFORMING CLOUD: \n";
-            pcl::transformPointCloud(currCloud,finalCloud,transf);
-            pcl::io::savePCDFileBinary ("finalCLoud.pcd", finalCloud);
+            pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);;
+            icp.align (finalCloud,oflowTransf*transf);
+            std::cout << "converged: " << icp.hasConverged() << "\n";
+            std::cout << "fitness: " << icp.getFitnessScore() << "\n";
+            std::cout << "icp transform: \n";
+            std::cout << icp.getFinalTransformation() << std::endl;
+            transf = icp.getFinalTransformation();
             prevCloud.clear();
-            std::cout << "Saving prev cloud: \n";
             pcl::copyPointCloud(currCloud,prevCloud);
-//            pcl::copyPointCloud(finalCloud,colorCloud);
             std::string cloudName;
             cloudName = rand_alnum_str(5);
             std::cout << "Adding cloud to viewer: " << finalCloud.size() << " " << finalCloud.points[0] << "\n";
             std::cout << cloudName << "\n";
             globalCloud = globalCloud + finalCloud;
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
-            viewer->addPointCloud<pcl::PointXYZRGBA>(globalCloud.makeShared(),cloudName);
+            finalCloud.clear();
 
-            //viewer->addPointCloud<pcl::PointXYZRGBA>(currCloud.makeShared(),cloudName);
-            //std::cout << "Setting color: \n";
-            //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, sin(i)*sin(i)*abs(cos(i)),abs(cos(i)),abs(sin(i)), cloudName);
         } else {
             while( !viewer->wasStopped() ) {
                 viewer->spinOnce (100);

@@ -246,7 +246,7 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
     std::vector<float> k_distances;
 
     // Copy the input data into the output
-    output = *input_;
+    //output = *input_;
     // For all the indices given (equal to the entire cloud if none given)
     //    for (size_t i = 0; i < indices_->size (); ++i)
     //    {
@@ -308,15 +308,15 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
 
                 if( medianDist > 0.02) {
 
-                    pcl::PointXYZRGBA point;
-                    point.x = output.at(n,m).x;
-                    point.y = output.at(n,m).y;
-                    point.z = output.at(n,m).z;
-                    uint zBlue = 255;
-                    uint zGreen = 0;//gP/W;
-                    uint zRed = 0;//rP/W;
-                    point.rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
-                    output.at(n,m) = point;
+//                    pcl::PointXYZRGBA point;
+//                    point.x = output.at(n,m).x;
+//                    point.y = output.at(n,m).y;
+//                    point.z = output.at(n,m).z;
+//                    uint zBlue = 255;
+//                    uint zGreen = 0;//gP/W;
+//                    uint zRed = 0;//rP/W;
+//                    point.rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
+                    output.push_back(input_->at(n,m));
                 }
 
             }
