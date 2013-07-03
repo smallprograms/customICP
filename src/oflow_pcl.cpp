@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -38,6 +37,7 @@ bool pointExists(const pcl::PointCloud<pcl::PointXYZ>& cornersCloudA, const pcl:
     }
     return false;
 }
+
 /** let points closests to median at first positions **/
 void sortCloud( pcl::PointCloud<pcl::PointXYZ>& cornersCloudA,  pcl::PointCloud<pcl::PointXYZ>& cornersCloudB,
                 pcl::PointXYZ medianDir) {

@@ -113,7 +113,7 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
 
         if ( kdtree.nearestKSearch (sourceCloud->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 ) {
             //add correspondence
-            if( pointNKNSquaredDistance[0] < max_distance ) {
+            if( pointNKNSquaredDistance[0] < (max_distance*max_distance) ) {
 
                 Eigen::Vector3i rgbSource = sourceCloud->points[i].getRGBVector3i();
                 Eigen::Vector3i rgbTarget = targetCloud->points[pointIdxNKNSearch[0]].getRGBVector3i();
@@ -124,10 +124,10 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
                 corresp.index_query = i;
                 corresp.index_match = pointIdxNKNSearch[0];
                 corresp.weight = 1.0f - std::min( (double)(hueTarget -hueSource)*(hueTarget-hueSource)/(360.0f*360.0f), 1.0 );
-                uint zBlue = 255;
-                uint zGreen = 0;//gP/W;
-                uint zRed = 0;//rP/W;
-                uint rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
+//                uint zBlue = 255;
+//                uint zGreen = 0;//gP/W;
+//                uint zRed = 0;//rP/W;
+//                uint rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
 //                if( sobelCloud.points[i].rgba == rgba ) {
 //                    corresp.weight = 1.0f;
 //                }

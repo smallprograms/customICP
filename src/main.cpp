@@ -54,6 +54,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     pcl::PointCloud<pcl::PointXYZRGBA> sobelCloud;
 
     pcl::FastBilateralFilter<pcl::PointXYZRGBA> fastBilFilter;
+    pcl::VoxelGrid<pcl::PointXYZRGBA> voxelFilter;
+    voxelFilter.setLeafSize(0.0025,0.0025,0.0025);
     pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
     //to accumulate ICP transformations
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
@@ -84,7 +86,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     fastBilFilter.setInputCloud(prevCloud.makeShared());
     fastBilFilter.filter(prevCloud);
 
-
+//    voxelFilter.setInputCloud(prevCloud.makeShared());
+//    voxelFilter.filter(prevCloud);
     //read file by file
     for(int i=min+1; i <= max; i++) {
 
@@ -110,8 +113,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
 
         fastBilFilter.setInputCloud(currCloud.makeShared());
         fastBilFilter.filter(currCloud);
-
-        if(doNext || true) {
+        if(doNext) {
 
             doNext = false; 
 
@@ -124,6 +126,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             pcl::removeNaNFromPointCloud( currCloud, currCloudNotDense, vec1);
             std::vector<int> vec2;
             pcl::removeNaNFromPointCloud( prevCloud, prevCloudNotDense, vec2);
+            voxelFilter.setInputCloud(prevCloudNotDense.makeShared());
+            voxelFilter.filter(prevCloudNotDense);
             // Set the input source and target
             sobFilter.setInputCloud(currCloud.makeShared());
             sobFilter.applyFilter(sobelCloud);
@@ -133,14 +137,14 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             //icp.setInputTarget (prevCloudNotDense.makeShared());
             std::cout << "oflow transf: \n" << oflowTransf << "\n";
             // Set the max correspondence distance to 1cm (e.g., correspondences with higher distances will be ignored)
-            icp.setMaxCorrespondenceDistance (0.05);
+            icp.setMaxCorrespondenceDistance (0.1);
             // Set the maximum number of iterations (criterion 1)
-            icp.setMaximumIterations (20);
+            icp.setMaximumIterations (10);
             // Set the transformation epsilon (criterion 2)
             //icp.setTransformationEpsilon (1e-6);
             // Set the euclidean distance difference epsilon (criterion 3)
             //icp.setEuclideanFitnessEpsilon (1e-6);
-            icp.setRANSACOutlierRejectionThreshold(0.05);
+            //icp.setRANSACOutlierRejectionThreshold(0.05);
 
             pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);;
             icp.align (finalCloud,oflowTransf*transf);
@@ -156,8 +160,12 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             std::cout << "Adding cloud to viewer: " << finalCloud.size() << " " << finalCloud.points[0] << "\n";
             std::cout << cloudName << "\n";
             globalCloud = globalCloud + finalCloud;
+            voxelFilter.setInputCloud(globalCloud.makeShared());
+            voxelFilter.filter(globalCloud);
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
             finalCloud.clear();
+            viewer->removeAllPointClouds();
+            viewer->addPointCloud(globalCloud.makeShared());
 
         } else {
             while( !viewer->wasStopped() ) {
