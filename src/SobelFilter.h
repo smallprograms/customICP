@@ -306,7 +306,7 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
                     medianDist = (dist3 + dist4)/2;
                 }
 
-                if( medianDist > 0.02) {
+                if( medianDist > 0.07) {
 
 //                    pcl::PointXYZRGBA point;
 //                    point.x = output.at(n,m).x;
@@ -323,7 +323,6 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
         }
     }
 
-    std::cout << "END filter\n";
             //            if( pcl::isFinite( input_->at(n,m)) ) {
 
             //                size_t j_min = ( (n - win_width/2) < 0 )? 0:n-win_width/2;
