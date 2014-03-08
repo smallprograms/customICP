@@ -1,20 +1,8 @@
+
 #include <iostream>
 #include <sstream>
 #include <cmath>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/registration/icp.h>
-#include <boost/thread/thread.hpp>
-#include "CustomCorrespondenceEstimation.h"
-#include "oflow_pcl.h"
-#include "BilateralFilter.h"
-#include <pcl/filters/fast_bilateral.h>
-#include "SobelFilter.h"
-#include <unsupported/Eigen/SparseExtra>
-
+#include "CustomICP.h"
 
 //flag used to press a key to process next capture
 bool doNext = false;
@@ -73,7 +61,7 @@ void mergeClouds(pcl::PointCloud<pcl::PointXYZRGBA>& globalCloud, const pcl::Poi
     std::vector<int> index;
     std::vector<float> dist;
     for(int k=0; k < newCloud.size(); k++) {
-
+        //avoid adding redundant points
         if( tree.radiusSearch(newCloud[k],0.005,index,dist,1) == 0 ) {
             globalCloud.push_back(newCloud[k]);
         }
@@ -86,8 +74,9 @@ void mergeClouds(pcl::PointCloud<pcl::PointXYZRGBA>& globalCloud, const pcl::Poi
 /** loads different captures (.pcd files), align them with customICP and write them aligned in a single file (outFile) **/
 void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int min, int max, char* outFile, char* global ) {
 
+    CustomICP icp;
     SobelFilter<pcl::PointXYZRGBA> sobFilter;
-    pcl::PointCloud<pcl::PointXYZRGBA> sobelCloud;
+    pcl::PointCloud<pcl::PointXYZRGBA> sobelCloud(640,480);
 
     pcl::FastBilateralFilter<pcl::PointXYZRGBA> fastBilFilter;
     pcl::VoxelGrid<pcl::PointXYZRGBA> voxelFilter;
@@ -122,12 +111,9 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
     pcl::PointCloud<pcl::PointXYZRGBA> globalCloud;
     //register method to capture keyboard events
     viewer->registerKeyboardCallback( keyboardEventOccurred );
-    //use our custom correspondences estimator 
-    CustomCorrespondenceEstimation<pcl::PointXYZRGBA,pcl::PointXYZRGBA,float> customCorresp;
-    pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> icp;
 
-    icp.setCorrespondenceEstimation(
-    boost::shared_ptr<pcl::registration::CorrespondenceEstimation<pcl::PointXYZRGBA,pcl::PointXYZRGBA,float> > (&customCorresp));
+
+
 
     //name of cloud file
     std::stringstream ss;
@@ -150,94 +136,91 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         //initialize globalCloud with first cloud
         globalCloud = prevCloud;
     }
-    fastBilFilter.setInputCloud(prevCloud.makeShared());
-    fastBilFilter.filter(prevCloud);
+//    fastBilFilter.setInputCloud(prevCloud.makeShared());
+//    fastBilFilter.filter(prevCloud);
 
-//    voxelFilter.setInputCloud(prevCloud.makeShared());
-//    voxelFilter.filter(prevCloud);
+
     //read file by file
     for(int i=min+1; i <= max; i++) {
 
-        /** read next cloud **/
-        ss.str(""); //reset string
-        ss << path << "/cap" << i << ".pcd";
-
-        pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
-
-        std::cout <<  "reading " << ss.str() << "\n";
-
-        //read current cloud from file
-        if( pcl::io::loadPCDFile<pcl::PointXYZRGBA>(ss.str(), currCloud) == -1 ) {
-
-            std::cout << "Reading end at " << i << "\n";
-            while( !viewer->wasStopped() ) {
-               
-                viewer->spinOnce (100);
-                boost::this_thread::sleep (boost::posix_time::microseconds (100000));
-
-            }
-
-
-
-        }
-        /** end read next cloud **/
-
-        //filter next cloud
-        fastBilFilter.setInputCloud(currCloud.makeShared());
-        fastBilFilter.filter(currCloud);
 
         //go ahead if user press n
         if(doNext || true) {
 
             doNext = false; 
 
-            //optical flow to calculate initial transformation
-            Eigen::Matrix4f oflowTransf = getOflow3Dtransf(currCloud.makeShared(),prevCloud.makeShared());
+            /** read next cloud **/
+            ss.str(""); //reset string
+            ss << path << "/cap" << i << ".pcd";
+
+            pcl::PointCloud<pcl::PointXYZRGBA> currCloud(640,480);
+
+            std::cout <<  "reading " << ss.str() << "\n";
+
+            //read current cloud from file
+            if( pcl::io::loadPCDFile<pcl::PointXYZRGBA>(ss.str(), currCloud) == -1 ) {
+
+                std::cout << "Reading end at " << i << "\n";
+                while( !viewer->wasStopped() ) {
+
+                    viewer->spinOnce (100);
+                    boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+
+                }
+
+            }
+
+            /** end read next cloud **/
+
 
             //icp needs not dense clouds
             pcl::PointCloud<pcl::PointXYZRGBA> currCloudNotDense;
             std::vector<int> vec1;
-            pcl::removeNaNFromPointCloud( currCloud, currCloudNotDense, vec1);
+            //pcl::removeNaNFromPointCloud( currCloud, currCloudNotDense, vec1);
 
             //apply voxel filter to curr cloud
-            voxelFilter.setInputCloud(currCloudNotDense.makeShared());
-            voxelFilter.filter(currCloudNotDense);
-
-            // Set the input source and target
-            sobFilter.setInputCloud(currCloud.makeShared());
-            sobFilter.applyFilter(sobelCloud);
-            customCorresp.sobelCloud = sobelCloud;
-            icp.setInputSource(currCloudNotDense.makeShared());
-            icp.setInputTarget (globalCloud.makeShared());
-
-            std::cout << "oflow transf: \n" << oflowTransf << "\n";
-            // Set the max correspondence distance to 10 cm (e.g., correspondences with higher distances will be ignored)
-            icp.setMaxCorrespondenceDistance (0.1);
-            // Set the maximum number of iterations (criterion 1)
-            icp.setMaximumIterations (10);
-            // Set the transformation epsilon (criterion 2)
-            //icp.setTransformationEpsilon (1e-6);
-            // Set the euclidean distance difference epsilon (criterion 3)
-            //icp.setEuclideanFitnessEpsilon (1e-6);
-            //icp.setRANSACOutlierRejectionThreshold(0.05);
-
+//            voxelFilter.setInputCloud(currCloudNotDense.makeShared());
+//            voxelFilter.filter(currCloudNotDense);
+            icp.setInputSource(currCloud.makeShared());
+            icp.setInputTarget(prevCloud.makeShared());
             pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);;
-            icp.align (finalCloud,oflowTransf*transf);
-            std::cout << "converged: " << icp.hasConverged() << "\n";
-            std::cout << "fitness: " << icp.getFitnessScore() << "\n";
-            std::cout << "icp transform: \n";
-            std::cout << icp.getFinalTransformation() << std::endl;
-            transf = icp.getFinalTransformation();
+            icp.align (finalCloud);
+            pcl::copyPointCloud(currCloud,prevCloud);
+            //pcl::copyPointCloud(prevCloud,sobelCloud);
+            //apply edge filter to target cloud
+
+            //sobFilter.setInputCloud(prevCloud.makeShared());
+            //sobFilter.applyFilter(sobelCloud);
+            //passs edge filtered cloud to icp
+            //customCorresp.sobelCloud = sobelCloud;
+
+
+            transf = icp.getFinalTransformation() * transf;
+            pcl::transformPointCloud(currCloud,finalCloud,transf);
+
+            pcl::Correspondences cor = icp.getCorrespondences();
+            viewer->removeAllPointClouds();
+            viewer->removeAllShapes();
+//            viewer->addPointCloud(icp.getSourceFiltered().makeShared(),"source");
+//            viewer->addPointCloud(icp.getTargetFiltered().makeShared(),"target");
+
+//            for(int k=0; k < cor.size(); k++) {
+//                pcl::Correspondence corresp = cor.at(k);
+//                viewer->addLine( icp.getSourceFiltered().points[corresp.index_query],icp.getTargetFiltered().points[corresp.index_match],rand_alnum_str(k+2) );
+//            }
+
             prevCloud.clear();
             pcl::copyPointCloud(currCloud,prevCloud);
             //globalCloud = globalCloud + finalCloud;
+            std::cout << "FINAL CLOUD SIZE:   " << finalCloud.size() << "\n\n";
             mergeClouds(globalCloud,finalCloud);
-            voxelFilter.setInputCloud(globalCloud.makeShared());
-            voxelFilter.filter(globalCloud);
+            std::cout << "GLOBAL CLOUD SIZE:   " << globalCloud.size() << "\n\n";
+
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
             finalCloud.clear();
-            viewer->removeAllPointClouds();
-            viewer->addPointCloud(globalCloud.makeShared());
+
+            //viewer->addPointCloud(globalCloud.makeShared());
+
 
             if(saveAndQuit) {
                 saveState(globalCloud,transf,outFile);

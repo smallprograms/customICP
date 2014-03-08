@@ -1,6 +1,9 @@
 #include <vector>
 #include <pcl/point_types.h>
 #include <pcl/registration/correspondence_estimation.h>
+#include <pcl/search/organized.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/common/geometry.h>
 #include "SobelFilter.h"
 
 #define MIN3(x,y,z)  ((y) <= (z) ? \
@@ -14,6 +17,9 @@
                      : \
                          ((x) >= (z) ? (x) : (z)))
 
+template<typename T> double distance(T p1, T p2) {
+    return (p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y)+(p1.z-p2.z)*(p1.z-p2.z);
+}
 
 //input: RGB value (0-255)
 //returns: the hue (0-360) component of HSV color space
@@ -68,7 +74,9 @@ class CustomCorrespondenceEstimation : public pcl::registration::CorrespondenceE
         CustomCorrespondenceEstimation();
         void determineCorrespondences (pcl::Correspondences &correspondences,
                                        double max_distance=std::numeric_limits< double >::max());
+        pcl::Correspondences getCorrespondences();
         pcl::PointCloud<PointSource> sobelCloud;
+        pcl::Correspondences corresp;
 
 };
 
@@ -84,15 +92,13 @@ template<typename PointSource, typename PointTarget,typename Scalar>
 void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCorrespondences (pcl::Correspondences &correspondences,
                                double max_distance) {
 
+    std::cout << "MAX DIST::::" << max_distance << "\n\n";
     PointCloudSourceConstPtr sourceCloud = pcl::registration::CorrespondenceEstimation<PointSource,PointTarget>::getInputSource();
     PointCloudSourceConstPtr targetCloud = pcl::registration::CorrespondenceEstimation<PointSource,PointTarget>::getInputTarget();
 
-    //put targetCloud in a kdtree in order to search
-    pcl::KdTreeFLANN<PointTarget> kdtree;
-    kdtree.setInputCloud (targetCloud);
-    std::cout << "a2 \n";
-    pcl::KdTreeFLANN<PointTarget> kdtreeSob;
-    kdtreeSob.setInputCloud(sobelCloud.makeShared());
+    pcl::KdTreeFLANN<PointTarget> orgSearch;
+    orgSearch.setInputCloud(targetCloud);
+
     // K nearest neighbor search
     int k = 1;
     std::vector<int> pointIdxNKNSearch(k);
@@ -100,30 +106,27 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
     //erase previous correspondences (reset vector)
     correspondences.clear();
     //search closest point in targetCLoud for each sourceCloud point
+
     for (int i=0; i < sourceCloud->points.size(); i++) {
 
-        if( !pcl::isFinite(sourceCloud->points[i]) ) continue;
-        //we want to avoid walls and flat objects because they doesnt apport much information
-        if(kdtreeSob.nearestKSearch(sourceCloud->points[i],k,pointIdxNKNSearch,pointNKNSquaredDistance) > 0) {
-            //skip point if is not in the sobel cloud
-            if( pointNKNSquaredDistance[0] > 0.001 ) {
-                continue;
-            }
-        }
 
-        if ( kdtree.nearestKSearch (sourceCloud->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 ) {
+        if(orgSearch.radiusSearch(sourceCloud->points[i],max_distance,pointIdxNKNSearch,pointNKNSquaredDistance) > 0) {
+
             //add correspondence
-            if( pointNKNSquaredDistance[0] < (max_distance*max_distance) ) {
+            if( pointNKNSquaredDistance.at(0)  < (max_distance*max_distance) ) {
 
-                Eigen::Vector3i rgbSource = sourceCloud->points[i].getRGBVector3i();
+  /*              Eigen::Vector3i rgbSource = sourceCloud->points[i].getRGBVector3i();
                 Eigen::Vector3i rgbTarget = targetCloud->points[pointIdxNKNSearch[0]].getRGBVector3i();
                 float hueSource = getHue(rgbSource);
-                float hueTarget = getHue(rgbTarget);
+                float hueTarget = getHue(rgbTarget)*/;
 
                 pcl::Correspondence corresp;
                 corresp.index_query = i;
                 corresp.index_match = pointIdxNKNSearch[0];
-                corresp.weight = 1.0f - std::min( (double)(hueTarget -hueSource)*(hueTarget-hueSource)/(360.0f*360.0f), 1.0 );
+                corresp.distance = pointNKNSquaredDistance.at(0);
+                //corresp.weight = 1.0;
+                //std::cout << "Corresp: " << corresp.index_match << " " << corresp.distance << "    " << corresp.index_query << "\n";
+                //corresp.weight = 1.0f - std::min( (double)(hueTarget -hueSource)*(hueTarget-hueSource)/(360.0f*360.0f), 1.0 );
 //                uint zBlue = 255;
 //                uint zGreen = 0;//gP/W;
 //                uint zRed = 0;//rP/W;
@@ -131,11 +134,20 @@ void CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::determineCo
 //                if( sobelCloud.points[i].rgba == rgba ) {
 //                    corresp.weight = 1.0f;
 //                }
-                if( corresp.weight > 0.7) {
+              //  if( corresp.weight > 0.7) {
                     correspondences.push_back(corresp);
-                }
+                //}
             }
+         }
         }
-    }
 
+    corresp = correspondences;
+
+
+
+}
+template<typename PointSource, typename PointTarget,typename Scalar>
+pcl::Correspondences CustomCorrespondenceEstimation<PointSource,PointTarget,Scalar>::getCorrespondences()
+{
+    return corresp;
 }

@@ -9,7 +9,6 @@
 
 void cloudToMat(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, cv::Mat& outMat){
 
-    std::cout << "IN\n";
     for(int w=0; w < cloud->width; w++) {
         for( int h=0; h < cloud->height; h++) {
 
@@ -17,14 +16,6 @@ void cloudToMat(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, cv::Mat& outMat){
                 outMat.at<cv::Vec3b>(h,w)[1] = (*cloud)(w,h).g;
                 outMat.at<cv::Vec3b>(h,w)[2] = (*cloud)(w,h).r;
          }
-    }
-
-
-    static bool writed=false;
-    if( !writed ) {
-        std::cout << "writing...." << "\n";
-        cv::imwrite("cloud.jpg",outMat);
-        writed=true;
     }
 
 }
@@ -179,9 +170,10 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
             }
         }
     }
+/*
     imwrite("imgA.jpg",imgAcolor);
     imwrite("imgB.jpg",imgBcolor);
-    imwrite("oflow.jpg",imgC);
+    imwrite("oflow.jpg",imgC); */
 
     /** calculate a median direction, conserve the three points closest to the median direction.
       this code must be rewrited, just for test **/

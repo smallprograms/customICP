@@ -75,8 +75,8 @@ public:
     SobelFilter () : sigma_s_ (100000),
         sigma_r_ (100000000),
         tree_ (),
-        win_width(5),
-        win_height(5)
+        win_width(3),
+        win_height(3)
     {
     }
 
@@ -168,56 +168,6 @@ private:
 };
 
 
-
-template <typename PointT> pcl::PointXYZRGBA
-SobelFilter<PointT>::computePointWeight (const int pid,
-                                         const std::vector<int> &indices,
-                                         const std::vector<float> &distances)
-{
-    double BF = 0, W = 0;
-    float xP = 0;
-    float yP = 0;
-    float zP = 0;
-    float bP = 0;
-    float gP = 0;
-    float rP = 0;
-
-    // For each neighbor
-    for (size_t n_id = 0; n_id < indices.size (); ++n_id)
-    {
-        int id = indices[n_id];
-        Eigen::Vector3i rgbNeig = input_->points[id].getRGBVector3i();
-        Eigen::Vector3i rgbPoint = input_->points[pid].getRGBVector3i();
-        // Compute the difference in intensity
-        double intensity_dist = fabs (rgbPoint(0,0) - rgbNeig(0,0));
-        intensity_dist +=  fabs (rgbPoint(1,0) - rgbNeig(1,0));
-        intensity_dist +=  fabs (rgbPoint(2,0) - rgbNeig(2,0));
-
-        // Compute the Gaussian intensity weights both in Euclidean and in intensity space
-        double dist = std::sqrt (distances[n_id]);
-        double weight = kernel (dist, sigma_s_) * kernel (intensity_dist, sigma_r_);
-
-        // Calculate the bilateral filter response
-        xP += weight * input_->points[id].x;
-        yP += weight * input_->points[id].y;
-        zP += weight * input_->points[id].z;
-        bP += weight * rgbNeig(0,0);
-        gP += weight * rgbNeig(1,0);
-        rP += weight * rgbNeig(2,0);
-        W += weight;
-    }
-    pcl::PointXYZRGBA point;
-    point.x = xP/W;
-    point.y = yP/W;
-    point.z = zP/W;
-    uint zBlue = 255;//zP/W;
-    uint zGreen = 0;//gP/W;
-    uint zRed = 0;//rP/W;
-    //point.rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
-    point.rgba = input_->points[pid].rgba;
-    return point;
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////////
 template <typename PointT> void
 SobelFilter<PointT>::applyFilter (PointCloud &output)
@@ -225,12 +175,13 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
     std::cout << "in filter\n";
 
     // Check if sigma_s has been given by the user
-    if (sigma_s_ == 0)
-    {
-        PCL_ERROR ("[pcl::SobelFilter::applyFilter] Need a sigma_s value given before continuing.\n");
-        return;
-    }
+//    if (sigma_s_ == 0)
+//    {
+//        PCL_ERROR ("[pcl::SobelFilter::applyFilter] Need a sigma_s value given before continuing.\n");
+//        return;
+//    }
     // In case a search method has not been given, initialize it using some defaults
+    /*
     if (!tree_)
     {
 
@@ -242,25 +193,11 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
             tree_.reset (new pcl::search::KdTree<PointT> (false));
     }
     tree_->setInputCloud (input_);
-    std::vector<int> k_indices;
-    std::vector<float> k_distances;
-
-    // Copy the input data into the output
-    //output = *input_;
-    // For all the indices given (equal to the entire cloud if none given)
-    //    for (size_t i = 0; i < indices_->size (); ++i)
-    //    {
-    //        // Perform a radius search to find the nearest neighbors
-    //        tree_->radiusSearch ((*indices_)[i], sigma_s_ * 2, k_indices, k_distances);
-    //        if(k_indices.size() > 0) {
-    //            // Overwrite the intensity value with the computed average
-    //            output.points[(*indices_)[i]] = computePointWeight ((*indices_)[i], k_indices, k_distances);
-    //        }
-    //    }
+*/
 
 
-    for(size_t m=win_height/2+1; m < (input_->height-win_height/2-1); m++) {
-        for(size_t n=win_width/2+1; n < (input_->width-win_width/2-1); n++) {
+    for(size_t m=win_width/2+1; m < (input_->width-win_width/2-1); m++) {
+        for(size_t n=win_height/2+1; n < (input_->height-win_height/2-1); n++) {
 
 
             size_t j_min = n-win_width/2;
@@ -268,92 +205,42 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
             size_t i_min = m-win_height/2;
             size_t i_max = m + win_height/2;
 
-            if( pcl::isFinite(input_->at(j_min,i_min)) && pcl::isFinite(input_->at(j_min,i_max))
-                    && pcl::isFinite(input_->at(j_max,i_min)) && pcl::isFinite(input_->at(j_max,i_max)) ) {
+            if( pcl::isFinite(input_->at(i_min,j_min)) && pcl::isFinite(input_->at(i_max,j_min)) && pcl::isFinite(input_->at(m,j_min)) &&
+                    pcl::isFinite(input_->at(m,j_max))
+                    && pcl::isFinite(input_->at(i_min,j_max)) && pcl::isFinite(input_->at(i_max,j_max)) && pcl::isFinite(input_->at(i_max,n))
+                    && pcl::isFinite(input_->at(i_min,n)) ) {
 
-                float dist1 = std::abs(input_->at(j_min,i_min).z - input_->at(j_min,i_max).z);
-                float dist2 = std::abs(input_->at(j_min,i_min).z - input_->at(j_max,i_min).z);
-                float dist3 = std::abs(input_->at(j_max,i_max).z - input_->at(j_min,i_max).z);
-                float dist4 = std::abs(input_->at(j_max,i_max).z - input_->at(j_min,i_max).z);
 
-                float maxDist = MAX3(dist1,dist2,dist3);
-                maxDist = (dist4 > maxDist)?dist4:maxDist;
-                float minDist = MIN3(dist1,dist2,dist3);
-                minDist = (dist4 < minDist)?dist4:minDist;
+                //horizontal diff mask
+                float distH = std::abs(input_->at(i_min,j_min).z - input_->at(i_min,j_max).z);
+                distH += 2*std::abs(input_->at(m,j_min).z - input_->at(m,j_max).z);
+                distH += std::abs(input_->at(i_max,j_min).z - input_->at(i_max,j_max).z);
 
-                float medianDist;
-                if( dist1 != maxDist && dist1 != minDist &&
-                        dist2 != maxDist && dist2 != minDist
-                        ) {
-                    medianDist = (dist1 + dist2)/2;
-                } else if( dist1 != maxDist && dist1 != minDist &&
-                           dist3 != maxDist && dist3 != minDist
-                           ) {
-                    medianDist = (dist1 + dist3)/2;
-                } else if( dist1 != maxDist && dist1 != minDist &&
-                           dist4 != maxDist && dist4 != minDist
-                           ) {
-                    medianDist = (dist1 + dist4)/2;
-                } else if( dist2 != maxDist && dist2 != minDist &&
-                           dist3 != maxDist && dist3 != minDist
-                           ) {
-                    medianDist = (dist2 + dist3)/2;
-                } else if( dist2 != maxDist && dist2 != minDist &&
-                           dist4 != maxDist && dist4 != minDist
-                           ) {
-                    medianDist = (dist2 + dist4)/2;
-                } else  {
-                    medianDist = (dist3 + dist4)/2;
+
+                //vertical diff mask
+                float distV = std::abs(input_->at(i_min,j_min).z - input_->at(i_max,j_min).z);
+                distV += 2*std::abs(input_->at(i_min,n).z - input_->at(i_max,n).z);
+                distV += std::abs(input_->at(i_min,j_max).z - input_->at(i_max,j_max).z);
+
+                float distG = std::sqrt( distH*distH + distV*distV );
+
+                const float thresh = 0.1;
+
+                if( distG > thresh) {
+                    output(m,n) = input_->at(m,n);
+                    //output.push_back(input_->at(n,m));
+
+                } else {
+                    output(m,n).x=output(m,n).y=output(m,n).z = std::numeric_limits<float>::quiet_NaN();
+
                 }
 
-                if( medianDist > 0.07) {
-
-//                    pcl::PointXYZRGBA point;
-//                    point.x = output.at(n,m).x;
-//                    point.y = output.at(n,m).y;
-//                    point.z = output.at(n,m).z;
-//                    uint zBlue = 255;
-//                    uint zGreen = 0;//gP/W;
-//                    uint zRed = 0;//rP/W;
-//                    point.rgba = zRed << (uint)24 | zBlue << (uint)16 | zGreen << (uint)8;
-                    output.push_back(input_->at(n,m));
-                }
-
+            } else {
+                output(m,n).x=output(m,n).y=output(m,n).z = std::numeric_limits<float>::quiet_NaN();
             }
         }
     }
 
-            //            if( pcl::isFinite( input_->at(n,m)) ) {
-
-            //                size_t j_min = ( (n - win_width/2) < 0 )? 0:n-win_width/2;
-            //                size_t j_max = ( (n + win_width/2) > (input_->width-1) )? input_->width-1:n + win_width/2;
-            //                size_t i_min = ( (m - win_height/2) < 0 )? 0:m-win_height/2;
-            //                size_t i_max = ( (m + win_height/2) > (input_->height-1) )? input_->height-1:m + win_height/2;
-
-            //                for(size_t j = j_min; j<= j_max; j++) {
-            //                    for(size_t i = i_min; i <= i_max; i++) {
-            //                        if( pcl::isFinite(input_->at(j,i)) ) {
-            //                            float dist = (j - n)*(j - n) + (i - m)*(i - m);
-            //                            size_t index = i*input_->width + j;
-            //                            k_indices.push_back(index);
-            //                            k_distances.push_back(dist);
-            //                        }
-            //                    }
-            //                }
-
-
-
-    //            if(k_indices.size() > 0) {
-    //                // Overwrite the intensity value with the computed average
-    //                output.points[m*input_->width + n] = computePointWeight (m*input_->width + n, k_indices, k_distances);
-    //                k_indices.clear();
-    //                k_distances.clear();
-
-    //            }
-
-
-    //        }
-    //    }
 
 }
 
