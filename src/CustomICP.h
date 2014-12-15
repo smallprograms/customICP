@@ -35,6 +35,7 @@ private:
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr tgt;
     pcl::PointCloud<pcl::PointXYZRGBA>  srcNonDense;
     pcl::PointCloud<pcl::PointXYZRGBA>  tgtNonDense;
+    Eigen::Matrix4f oflowTransf;
 };
 
 #endif // CUSTOMICP_H

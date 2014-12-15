@@ -74,13 +74,14 @@ void mergeClouds(pcl::PointCloud<pcl::PointXYZRGBA>& globalCloud, const pcl::Poi
 /** loads different captures (.pcd files), align them with customICP and write them aligned in a single file (outFile) **/
 void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int min, int max, char* outFile, char* global ) {
 
-    CustomICP icp;
+    CustomICP<pcl::PointXYZRGBA> icp;
     SobelFilter<pcl::PointXYZRGBA> sobFilter;
     pcl::PointCloud<pcl::PointXYZRGBA> sobelCloud(640,480);
 
     pcl::FastBilateralFilter<pcl::PointXYZRGBA> fastBilFilter;
     pcl::VoxelGrid<pcl::PointXYZRGBA> voxelFilter;
     voxelFilter.setLeafSize(0.0025,0.0025,0.0025);
+
     pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
     //to accumulate ICP transformations
     static Eigen::Matrix4f transf = Eigen::Matrix4f::Identity ();
@@ -136,8 +137,7 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         //initialize globalCloud with first cloud
         globalCloud = prevCloud;
     }
-//    fastBilFilter.setInputCloud(prevCloud.makeShared());
-//    fastBilFilter.filter(prevCloud);
+
 
 
     //read file by file
@@ -181,6 +181,12 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             //apply voxel filter to curr cloud
 //            voxelFilter.setInputCloud(currCloudNotDense.makeShared());
 //            voxelFilter.filter(currCloudNotDense);
+            //Apply bilateral filter
+            fastBilFilter.setInputCloud(prevCloud.makeShared());
+            fastBilFilter.filter(prevCloud);
+            fastBilFilter.setInputCloud(currCloud.makeShared());
+            fastBilFilter.filter(currCloud);
+            //start ICP
             icp.setInputSource(currCloud.makeShared());
             icp.setInputTarget(prevCloud.makeShared());
             pcl::PointCloud<pcl::PointXYZRGBA> finalCloud(640,480);;
@@ -214,6 +220,8 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
             //globalCloud = globalCloud + finalCloud;
             std::cout << "FINAL CLOUD SIZE:   " << finalCloud.size() << "\n\n";
             mergeClouds(globalCloud,finalCloud);
+
+
             std::cout << "GLOBAL CLOUD SIZE:   " << globalCloud.size() << "\n\n";
 
             std::cout << "Global cloud with: " << globalCloud.points.size() << "\n";
@@ -244,6 +252,11 @@ void  alignAndView( pcl::visualization::PCLVisualizer* viewer, char* path, int m
         boost::this_thread::sleep (boost::posix_time::microseconds (100000));
 
     }
+
+
+    voxelFilter.setInputCloud(globalCloud.makeShared());
+    voxelFilter.filter(globalCloud);
+
 
     pcl::io::savePCDFileBinary (outFile, globalCloud);
     std::cerr << "Saved " << globalCloud.points.size () << " data points to " << outFile << "\n";

@@ -3,38 +3,35 @@
 CustomICP::CustomICP()
 {
     icp.setCorrespondenceEstimation(
-    boost::shared_ptr<pcl::registration::CorrespondenceEstimation<pcl::PointXYZRGBA,pcl::PointXYZRGBA,float> > (&customCorresp));
+    boost::shared_ptr<pcl::registration::CorrespondenceEstimation<PointT,PointT,float> > (&customCorresp));
     icp.setMaxCorrespondenceDistance(0.1);
-    icp.setMaximumIterations (15);
-    icp.setEuclideanFitnessEpsilon(0);
-    icp.setTransformationEpsilon(0);
+    //icp.setMaximumIterations (15);
+    icp.setTransformationEpsilon (1e-6);
 
 }
 
-void CustomICP::setInputSource( pcl::PointCloud<pcl::PointXYZRGBA>::Ptr src ) {
+void CustomICP::setInputSource( pcl::PointCloud<PointT>::Ptr src ) {
     this->src = src;
 
 }
 
-void CustomICP::setInputTarget( pcl::PointCloud<pcl::PointXYZRGBA>::Ptr tgt ) {
+void CustomICP::setInputTarget( pcl::PointCloud<PointT>::Ptr tgt ) {
     this->tgt = tgt;
 
 }
 
-void CustomICP::align( pcl::PointCloud<pcl::PointXYZRGBA> &cloud )
+void CustomICP::align( pcl::PointCloud<PointT> &cloud )
 {
     //optical flow to calculate initial transformation
-    Eigen::Matrix4f oflowTransf = getOflow3Dtransf(src,tgt);
-    pcl::PointCloud<pcl::PointXYZRGBA> sobTgt(640,480);
-    pcl::PointCloud<pcl::PointXYZRGBA> sobSrc(640,480);
+    //oflowTransf = getOflow3Dtransf(src,tgt);
+    oflowTransf = Eigen::Matrix4f::Identity();
+    pcl::PointCloud<PointT> sobTgt(640,480);
+    pcl::PointCloud<PointT> sobSrc(640,480);
     sobFilter.setInputCloud(tgt);
     sobFilter.applyFilter(sobTgt);
     sobFilter.setInputCloud(src);
     sobFilter.applyFilter(sobSrc);
-    std::vector<int> vec1;
 //    pcl::io::savePCDFileASCII("sobTgt.pcd",sobTgt);
-//    pcl::removeNaNFromPointCloud( sobTgt, tgtNonDense, vec1);
-//    pcl::removeNaNFromPointCloud( sobSrc, srcNonDense, vec1);
     tgtNonDense.clear();
     srcNonDense.clear();
 
@@ -56,12 +53,26 @@ void CustomICP::align( pcl::PointCloud<pcl::PointXYZRGBA> &cloud )
     icp.setInputTarget(tgtNonDense.makeShared());
     icp.setInputSource(srcNonDense.makeShared());
     icp.align(cloud,oflowTransf);
+    //transformation obtained appling ICP over sobel clouds
+    Eigen::Matrix4f sobelTransf = icp.getFinalTransformation();
+    //apply ICP over original point clouds
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(*tgt,*tgt, indices);
+    pcl::removeNaNFromPointCloud(*src,*src, indices);
+    std::cout << "non sobel sizeT...:::: " << tgt->size() << "\n";
+    std::cout << "non sobel sizeS...:::: " << src->size() << "\n";
+    icp.setInputTarget(tgt);
+    icp.setInputSource(src);
+    icp.align(cloud,sobelTransf);
+
+
 
 
 }
 
 Eigen::Matrix4f CustomICP::getFinalTransformation() {
     return icp.getFinalTransformation();
+    //return oflowTransf;
 }
 
 pcl::Correspondences CustomICP::getCorrespondences()
@@ -69,12 +80,12 @@ pcl::Correspondences CustomICP::getCorrespondences()
     return customCorresp.getCorrespondences();
 }
 
-pcl::PointCloud<pcl::PointXYZRGBA> CustomICP::getSourceFiltered()
+pcl::PointCloud<PointT> CustomICP::getSourceFiltered()
 {
     return srcNonDense;
 }
 
-pcl::PointCloud<pcl::PointXYZRGBA> CustomICP::getTargetFiltered()
+pcl::PointCloud<PointT> CustomICP::getTargetFiltered()
 {
     return tgtNonDense;
 }

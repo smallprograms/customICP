@@ -82,7 +82,7 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
 
     cv::Size img_sz = imgA.size();
 
-    int win_size = 15;
+    int win_size = 25;
     int maxCorners = 20;
     double qualityLevel = 0.05;
     double minDistance = 5.0;
@@ -113,7 +113,7 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
     feature_errors.reserve(maxCorners);
 
     calcOpticalFlowPyrLK( imgA, imgB, cornersA, cornersB, features_found, feature_errors ,
-            cv::Size( win_size, win_size ), 5,
+            cv::Size( win_size, win_size ), 3,
             cvTermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 ), 0 );
 
 
@@ -133,11 +133,10 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
     for( int i=0; i < features_found.size(); i++ ){
         if( feature_errors[i] < 60) {
 
-            cv::Point p0( ceil( cornersA[i].x ), ceil( cornersA[i].y ) );
-            cv::Point p1( ceil( cornersB[i].x ), ceil( cornersB[i].y ) );
+            cv::Point p0( round( cornersA[i].x ), round( cornersA[i].y ) );
+            cv::Point p1( round( cornersB[i].x ), round( cornersB[i].y ) );
             if( pcl::isFinite((*cloudA)(p0.x,p0.y)) && pcl::isFinite((*cloudB)(p1.x,p1.y)) ) {
 
-                std::cout << p0 << " " << p1 << "  Error is "<<feature_errors[i]<< "\n";
                 line( imgC, p0, p1, CV_RGB(255,255,255), 2 );
                 line( imgAcolor,p0,p0,CV_RGB((i*30)%255,(i*45+77)%255,(i*75+17)%255), 2);
                 line( imgBcolor,p1,p1,CV_RGB((i*30)%255,(i*45+77)%255,(i*75+17)%255), 2);
@@ -151,6 +150,7 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
                 pointB.y = (*cloudB)(p1.x,p1.y).y;
                 pointB.z = (*cloudB)(p1.x,p1.y).z;
                 if( pointExists(cornersCloudA,pointA) == false && pointExists(cornersCloudB,pointB) == false ) {
+
                     cornersCloudA.push_back( pointA );
                     cornersCloudB.push_back( pointB );
 
@@ -161,8 +161,6 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
                     dirY.push_back(dir.y);
                     dirZ.push_back(dir.z);
 
-                    std::cout << "PA:" << pointA << "\n";
-                    std::cout << "PB:" << pointB << "\n";
                 }
 
             } else {
@@ -170,52 +168,63 @@ Eigen::Matrix4f getOflow3Dtransf(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudA,
             }
         }
     }
-/*
-    imwrite("imgA.jpg",imgAcolor);
-    imwrite("imgB.jpg",imgBcolor);
-    imwrite("oflow.jpg",imgC); */
+
+//    imwrite("imgA.jpg",imgAcolor);
+//    imwrite("imgB.jpg",imgBcolor);
+//    imwrite("oflow.jpg",imgC);
 
     /** calculate a median direction, conserve the three points closest to the median direction.
       this code must be rewrited, just for test **/
 
-    std::sort(dirX.begin(),dirX.end());
-    std::sort(dirY.begin(),dirY.end());
-    std::sort(dirZ.begin(),dirZ.end());
+//    std::sort(dirX.begin(),dirX.end());
+//    std::sort(dirY.begin(),dirY.end());
+//    std::sort(dirZ.begin(),dirZ.end());
 
-    pcl::PointXYZ medianDir;
-    if(dirX.size()%2) {
-        medianDir.x = dirX[dirX.size()/2];
-        medianDir.y = dirY[dirY.size()/2];
-        medianDir.z = dirZ[dirZ.size()/2];
-    } else {
-        medianDir.x = (dirX[dirX.size()/2] + dirX[dirX.size()/2-1])/2;
-        medianDir.y = (dirY[dirY.size()/2] + dirY[dirY.size()/2-1])/2;
-        medianDir.z = (dirZ[dirZ.size()/2] + dirZ[dirZ.size()/2-1])/2;
-    }
-    std::cout << "med dir:" << medianDir << "\n\n";
+//    pcl::PointXYZ medianDir;
+//    if(dirX.size()%2) {
+//        medianDir.x = dirX[dirX.size()/2];
+//        medianDir.y = dirY[dirY.size()/2];
+//        medianDir.z = dirZ[dirZ.size()/2];
+//    } else {
+//        medianDir.x = (dirX[dirX.size()/2] + dirX[dirX.size()/2-1])/2;
+//        medianDir.y = (dirY[dirY.size()/2] + dirY[dirY.size()/2-1])/2;
+//        medianDir.z = (dirZ[dirZ.size()/2] + dirZ[dirZ.size()/2-1])/2;
+//    }
+//    std::cout << "med dir:" << medianDir << "\n\n";
 
 
-    sortCloud(cornersCloudA,cornersCloudB, medianDir);
+//    sortCloud(cornersCloudA,cornersCloudB, medianDir);
 
-    pcl::PointCloud<pcl::PointXYZ> finalCornersA;
-    pcl::PointCloud<pcl::PointXYZ> finalCornersB;
+//    pcl::PointCloud<pcl::PointXYZ> finalCornersA;
+//    pcl::PointCloud<pcl::PointXYZ> finalCornersB;
+//    pcl::Correspondences corrVec;
+//    for(int j=0; j< cornersCloudA.size()/2; j++) {
+//        std::cout << "CA: " << cornersCloudA[j] << "\n";
+//        std::cout << "CB: " << cornersCloudB[j] << "\n";
+//        float dist = cornersCloudA[j].x - cornersCloudB[j].x;
+//        dist = dist*dist;
+//        dist = dist + (cornersCloudA[j].y - cornersCloudB[j].y)*(cornersCloudA[j].y - cornersCloudB[j].y);
+//        dist = dist + (cornersCloudA[j].z - cornersCloudB[j].z)*(cornersCloudA[j].z - cornersCloudB[j].z);
+//        finalCornersA.push_back( cornersCloudA[j] );
+//        finalCornersB.push_back( cornersCloudB[j] );
+//        corrVec.push_back(pcl::Correspondence(j,j,dist));
+//    }
+
     pcl::Correspondences corrVec;
-    for(int j=0; j< cornersCloudA.size()/2; j++) {
-        std::cout << "CA: " << cornersCloudA[j] << "\n";
-        std::cout << "CB: " << cornersCloudB[j] << "\n";
+    for(int j=0; j< cornersCloudA.size(); j++) {
+
         float dist = cornersCloudA[j].x - cornersCloudB[j].x;
         dist = dist*dist;
         dist = dist + (cornersCloudA[j].y - cornersCloudB[j].y)*(cornersCloudA[j].y - cornersCloudB[j].y);
         dist = dist + (cornersCloudA[j].z - cornersCloudB[j].z)*(cornersCloudA[j].z - cornersCloudB[j].z);
-        finalCornersA.push_back( cornersCloudA[j] );
-        finalCornersB.push_back( cornersCloudB[j] );
         corrVec.push_back(pcl::Correspondence(j,j,dist));
     }
 
     pcl::registration::TransformationEstimationSVD<pcl::PointXYZ,pcl::PointXYZ,float_t> tEst;
-    if(finalCornersA.size() > 2) {
+    if(/*finalCornersA.size()*/ cornersCloudA.size() > 2) {
 
-        tEst.estimateRigidTransformation(finalCornersA,finalCornersB,corrVec,transfMat);
+        //tEst.estimateRigidTransformation(finalCornersA,finalCornersB,corrVec,transfMat);
+        tEst.estimateRigidTransformation(cornersCloudA,cornersCloudB,corrVec,transfMat);
 
     }
 

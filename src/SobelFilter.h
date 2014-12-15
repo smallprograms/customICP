@@ -224,7 +224,8 @@ SobelFilter<PointT>::applyFilter (PointCloud &output)
 
                 float distG = std::sqrt( distH*distH + distV*distV );
 
-                const float thresh = 0.1;
+                //const float thresh = 0.1;
+                const float thresh = 0.025;
 
                 if( distG > thresh) {
                     output(m,n) = input_->at(m,n);
